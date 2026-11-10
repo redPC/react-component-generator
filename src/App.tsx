@@ -36,7 +36,7 @@ function App() {
     anthropic: false,
     google: false,
   });
-  const { components, isLoading, error, generate, removeComponent, clearAll } =
+  const { components, isLoading, error, streaming, generate, removeComponent, clearAll } =
     useComponentGenerator();
 
   useEffect(() => {
@@ -179,22 +179,23 @@ function App() {
           </div>
         )}
 
-        {isLoading && (
-          <div className="window loading-card" role="status">
-            <div className="title-bar">
-              <span className="title-box" aria-hidden="true" />
-              <span className="title-text">생성 중</span>
-            </div>
-            <div className="window-body">
-              <p>컴포넌트를 생성하고 있습니다...</p>
-              <div className="progress" aria-hidden="true">
-                <div className="progress-fill" />
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="results-grid">
+          {streaming && (
+            <div role="status" aria-live="polite">
+              <ComponentCard
+                component={{
+                  id: 'streaming',
+                  prompt: streaming.prompt,
+                  code: streaming.code,
+                  createdAt: new Date(),
+                }}
+                onRemove={removeComponent}
+                onRegenerate={handleGenerate}
+                isLoading={isLoading}
+                isStreaming
+              />
+            </div>
+          )}
           {components.map((component) => (
             <ComponentCard
               key={component.id}

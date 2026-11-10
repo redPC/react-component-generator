@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { PromptInput } from './components/PromptInput';
 import { ComponentCard } from './components/ComponentCard';
 import { useComponentGenerator } from './hooks/useComponentGenerator';
+import { usePersistentState } from './hooks/usePersistentState';
+import { STORAGE_KEYS, MAX_PROMPT_HISTORY, addPromptHistory } from './utils/storage';
 import type { Provider } from './types';
 import './App.css';
 
@@ -11,9 +13,25 @@ const PROVIDER_CONFIG = {
 } as const;
 
 function App() {
-  const [apiKey, setApiKey] = useState('');
+  const [apiKey, setApiKey] = usePersistentState<string>(
+    STORAGE_KEYS.apiKey,
+    '',
+    (raw) => (typeof raw === 'string' ? raw : ''),
+  );
   const [showKey, setShowKey] = useState(false);
-  const [provider, setProvider] = useState<Provider>('google');
+  const [provider, setProvider] = usePersistentState<Provider>(
+    STORAGE_KEYS.provider,
+    'google',
+    (raw) => (raw === 'anthropic' || raw === 'google' ? raw : 'google'),
+  );
+  const [promptHistory, setPromptHistory] = usePersistentState<string[]>(
+    STORAGE_KEYS.promptHistory,
+    [],
+    (raw) =>
+      Array.isArray(raw)
+        ? raw.filter((p): p is string => typeof p === 'string').slice(0, MAX_PROMPT_HISTORY)
+        : [],
+  );
   const [envKeys, setEnvKeys] = useState<Record<Provider, boolean>>({
     anthropic: false,
     google: false,
@@ -35,6 +53,7 @@ function App() {
       alert(`${PROVIDER_CONFIG[provider].label} API 키를 입력하거나 .env에 설정해주세요.`);
       return;
     }
+    setPromptHistory((prev) => addPromptHistory(prev, prompt));
     generate(prompt, apiKey || undefined, provider);
   };
 
@@ -71,7 +90,7 @@ function App() {
             <span className="title-text">새 컴포넌트</span>
           </div>
           <div className="window-body">
-            <PromptInput onGenerate={handleGenerate} isLoading={isLoading} />
+            <PromptInput onGenerate={handleGenerate} isLoading={isLoading} history={promptHistory} />
           </div>
         </section>
 

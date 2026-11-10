@@ -1,0 +1,49 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ground: #7f93d6;
+  --ground-dot: #6f84cc;
+  --foreground: #16161d;
+}
+
+body {
+  font-family: 'Galmuri11', 'Galmuri9', 'Malgun Gothic', ui-monospace, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  background-color: var(--ground);
+  background-image:
+    linear-gradient(45deg, var(--ground-dot) 25%, transparent 25%, transparent 75%, var(--ground-dot) 75%),
+    linear-gradient(45deg, var(--ground-dot) 25%, transparent 25%, transparent 75%, var(--ground-dot) 75%);
+  background-size: 4px 4px;
+  background-position: 0 0, 2px 2px;
+  color: var(--foreground);
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

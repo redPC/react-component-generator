@@ -306,6 +306,36 @@
   color: #767986;
 }
 
+.prompt-textarea[aria-invalid='true'] {
+  border-color: var(--red);
+  box-shadow: var(--bevel-sunken), 0 0 0 2px var(--red);
+}
+
+.prompt-feedback {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.prompt-error {
+  color: #9b1410;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.prompt-counter {
+  margin-left: auto;
+  color: #3a3d48;
+  white-space: nowrap;
+}
+
+.prompt-counter--over {
+  color: #9b1410;
+  font-weight: 700;
+}
+
 .btn-generate {
   height: 52px;
   padding: 0 24px;

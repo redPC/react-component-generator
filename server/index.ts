@@ -1,12 +1,8 @@
 import { stripCodeFences, ensureRenderCall } from './generator';
 import { withModelFallback } from './fallback';
 import { toApiError } from './errors';
-import {
-  splitSseData,
-  formatSse,
-  parseAnthropicChunk,
-  parseGoogleChunk,
-} from './stream';
+import { fetchUpstream } from './upstream';
+import { parseAnthropicChunk, parseGoogleChunk, relayUpstream } from './stream';
 
 // 우선순위 순서. 앞 모델이 실패하면 다음 모델로 폴백한다.
 const GOOGLE_MODELS = ['gemini-3.1-flash-lite', 'gemini-3.5-flash'];
@@ -103,7 +99,7 @@ function googleRequest(prompt: string): RequestInit {
 }
 
 async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', anthropicRequest(prompt, apiKey, false));
+  const response = await fetchUpstream('Claude', 'https://api.anthropic.com/v1/messages', anthropicRequest(prompt, apiKey, false));
 
   if (!response.ok) {
     throw new Error(`Claude API error: ${response.status}`);
@@ -122,7 +118,7 @@ async function callAnthropic(prompt: string, apiKey: string): Promise<string> {
 async function callGoogleModel(prompt: string, apiKey: string, model: string): Promise<string> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const response = await fetch(url, googleRequest(prompt));
+  const response = await fetchUpstream('Gemini', url, googleRequest(prompt));
 
   if (!response.ok) {
     throw new Error(`Gemini API error: ${response.status}`);
@@ -153,7 +149,7 @@ async function callGoogle(prompt: string, apiKey: string): Promise<string> {
 
 // 스트리밍 업스트림 연결. 응답 헤더를 받기 전 실패만 여기서 던지므로, 폴백은 본문 수신 전에만 일어난다.
 async function openAnthropicStream(prompt: string, apiKey: string): Promise<Response> {
-  const response = await fetch('https://api.anthropic.com/v1/messages', anthropicRequest(prompt, apiKey, true));
+  const response = await fetchUpstream('Claude', 'https://api.anthropic.com/v1/messages', anthropicRequest(prompt, apiKey, true));
 
   if (!response.ok) {
     throw new Error(`Claude API error: ${response.status}`);
@@ -165,7 +161,7 @@ async function openAnthropicStream(prompt: string, apiKey: string): Promise<Resp
 async function openGoogleModelStream(prompt: string, apiKey: string, model: string): Promise<Response> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
 
-  const response = await fetch(url, googleRequest(prompt));
+  const response = await fetchUpstream('Gemini', url, googleRequest(prompt));
 
   if (!response.ok) {
     throw new Error(`Gemini API error: ${response.status}`);
@@ -184,49 +180,9 @@ function relayStream(upstream: Response, provider: Provider): Response {
     throw new Error('Empty upstream body');
   }
 
-  const upstreamBody = upstream.body;
   const parseChunk = provider === 'google' ? parseGoogleChunk : parseAnthropicChunk;
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
 
-  const body = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(formatSse(event, data)));
-      };
-
-      let full = '';
-      try {
-        const reader = upstreamBody.getReader();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const { payloads, rest } = splitSseData(buffer);
-          buffer = rest;
-
-          for (const payload of payloads) {
-            const text = parseChunk(payload);
-            if (text) {
-              full += text;
-              send('delta', { text });
-            }
-          }
-        }
-
-        send('done', { code: ensureRenderCall(stripCodeFences(full)) });
-      } catch (err) {
-        send('error', { error: toApiError(err).error });
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(body, {
+  return new Response(relayUpstream(upstream.body, parseChunk), {
     headers: {
       ...CORS_HEADERS,
       'Content-Type': 'text/event-stream',

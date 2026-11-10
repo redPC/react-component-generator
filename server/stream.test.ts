@@ -1,10 +1,72 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   splitSseData,
   formatSse,
   parseAnthropicChunk,
   parseGoogleChunk,
+  relayUpstream,
 } from './stream';
+
+function upstreamFrom(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+}
+
+async function readAll(stream: ReadableStream<Uint8Array>): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let out = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    out += decoder.decode(value, { stream: true });
+  }
+
+  return out;
+}
+
+const deltaEvent = (text: string) =>
+  `data: ${JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text } })}\n\n`;
+
+describe('relayUpstream', () => {
+  it('델타를 delta 이벤트로 보내고, 끝나면 정규화된 코드를 done 이벤트로 보낸다', async () => {
+    const out = await readAll(
+      relayUpstream(upstreamFrom([deltaEvent('const Button = () => null;')]), parseAnthropicChunk),
+    );
+
+    expect(out).toContain('event: delta');
+    expect(out).toContain('event: done');
+    expect(out).toContain('render(<Button />);');
+  });
+
+  it('파서가 던지면 error 이벤트를 보내고 스트림을 닫는다', async () => {
+    const parse = () => {
+      throw new Error('upstream boom');
+    };
+
+    const out = await readAll(relayUpstream(upstreamFrom(['data: {}\n\n']), parse));
+
+    expect(out).toContain('event: error');
+    expect(out).toContain('upstream boom');
+    expect(out).not.toContain('event: done');
+  });
+
+  it('출력 스트림이 취소되면 업스트림 reader도 취소한다', async () => {
+    const onCancel = vi.fn();
+    const pending = new ReadableStream<Uint8Array>({ cancel: onCancel });
+    const out = relayUpstream(pending, parseAnthropicChunk);
+
+    await out.cancel();
+
+    expect(onCancel).toHaveBeenCalled();
+  });
+});
 
 describe('splitSseData', () => {
   it('완성된 data 이벤트의 페이로드를 꺼낸다', () => {

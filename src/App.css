@@ -673,6 +673,24 @@
   font-size: 0.88rem;
   line-height: 1.7;
   tab-size: 2;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.stream-cursor {
+  display: inline-block;
+  width: 0.6em;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--amber);
+  animation: stream-blink 1s steps(2, start) infinite;
+}
+
+@keyframes stream-blink {
+  to {
+    visibility: hidden;
+  }
 }
 
 /* ───────── 반응형 ───────── */
